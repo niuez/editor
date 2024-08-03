@@ -1,7 +1,7 @@
 use std::{fs::File, io::BufReader};
 
 use crate::terminal::Terminal;
-use super::{ Draw, Input, BufferRect };
+use super::{ Draw, Input, ViewerRect };
 use ropey::Rope;
 
 pub struct TextViewer {
@@ -25,7 +25,7 @@ impl TextViewer {
         )
     }
 
-    fn fix_top_left(&mut self, rect: &BufferRect) {
+    fn fix_top_left(&mut self, rect: &ViewerRect) {
         if self.top > self.cursor.0 {
             self.top = self.cursor.0;
         }
@@ -43,7 +43,7 @@ impl TextViewer {
 }
 
 impl Draw for TextViewer {
-    fn draw_all(&mut self, rect: &BufferRect, terminal: &mut Terminal) -> anyhow::Result<()> {
+    fn draw_all(&mut self, rect: &ViewerRect, terminal: &mut Terminal) -> anyhow::Result<()> {
         self.fix_top_left(rect);
         for i in self.top..self.top + rect.h {
             if let Some(slice) = self.rope.get_line(i) {
@@ -56,7 +56,7 @@ impl Draw for TextViewer {
         }
         Ok(())
     }
-    fn draw_cursor(&mut self, rect: &BufferRect, terminal: &mut Terminal) -> anyhow::Result<()> {
+    fn draw_cursor(&mut self, rect: &ViewerRect, terminal: &mut Terminal) -> anyhow::Result<()> {
         self.fix_top_left(rect);
         assert!(self.top <= self.cursor.0);
         assert!(self.cursor.0 < self.top + rect.h);

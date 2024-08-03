@@ -1,4 +1,4 @@
-use crate::buffer::{ Draw, Input, BufferRect, text_viewer::TextViewer };
+use crate::viewer::{ Draw, Input, ViewerRect, text_viewer::TextViewer };
 use crate::rawmode::RawMode;
 use crate::terminal::Terminal;
 use anyhow::{ anyhow, Context };
@@ -19,13 +19,13 @@ pub struct Editor {
     mode: Mode,
 
     text_viewer: TextViewer,
-    rect: BufferRect,
+    rect: ViewerRect,
 }
 
 impl Editor {
     pub fn new() -> anyhow::Result<Editor> {
         let terminal = Terminal::new()?;
-        let rect = BufferRect { h: terminal.height(), w: terminal.width(), i: 0, j: 0 };
+        let rect = ViewerRect { h: terminal.height(), w: terminal.width(), i: 0, j: 0 };
         Ok(Editor {
             _mode: RawMode::enable_raw_mode().context("enable raw mode failed")?,
             stdin: std::io::stdin(),

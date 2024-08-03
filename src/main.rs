@@ -1,7 +1,7 @@
 pub mod rawmode;
 pub mod key;
 pub mod terminal;
-pub mod buffer;
+pub mod viewer;
 pub mod editor;
 
 use editor::Editor;

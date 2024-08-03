@@ -3,7 +3,7 @@ pub mod text_viewer;
 use crate::terminal::Terminal;
 
 #[derive(Debug, Clone)]
-pub struct BufferRect {
+pub struct ViewerRect {
     pub h: usize,
     pub w: usize,
     pub i: usize,
@@ -11,8 +11,8 @@ pub struct BufferRect {
 }
 
 pub trait Draw {
-    fn draw_all(&mut self, rect: &BufferRect, terminal: &mut Terminal) -> anyhow::Result<()>;
-    fn draw_cursor(&mut self, rect: &BufferRect, terminal: &mut Terminal) -> anyhow::Result<()>;
+    fn draw_all(&mut self, rect: &ViewerRect, terminal: &mut Terminal) -> anyhow::Result<()>;
+    fn draw_cursor(&mut self, rect: &ViewerRect, terminal: &mut Terminal) -> anyhow::Result<()>;
 }
 
 pub trait Input {
