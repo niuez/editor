@@ -1,0 +1,11 @@
+[package]
+name = "editor"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+termios = "0.3.3"
+libc = "0.2.155"
+ropey = "1.6.1"
+anyhow = "1.0.86"
+thiserror = "1.0.63"
