@@ -102,7 +102,7 @@ impl<B: Buffer> Input for TextViewer<B> {
         Ok(())
     }
     fn backspace(&mut self) -> anyhow::Result<()> {
-        self.cursor = self.buffer.borrow_mut().newline(self.cursor)?;
+        self.cursor = self.buffer.borrow_mut().backspace(self.cursor)?;
         Ok(())
     }
 }
