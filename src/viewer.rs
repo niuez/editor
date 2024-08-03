@@ -25,5 +25,5 @@ pub trait Input {
     fn backspace(&mut self) -> anyhow::Result<()> { Ok(()) }
 }
 
-pub trait Buffer: Draw + Input {}
+pub trait Viewer: Draw + Input {}
 

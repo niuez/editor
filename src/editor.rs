@@ -1,4 +1,8 @@
-use crate::viewer::{ Draw, Input, ViewerRect, text_viewer::TextViewer };
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use crate::buffer::text_buffer::TextBuffer;
+use crate::viewer::{ Draw, Input, Viewer, ViewerRect, text_viewer::TextViewer };
 use crate::rawmode::RawMode;
 use crate::terminal::Terminal;
 use anyhow::{ anyhow, Context };
@@ -18,7 +22,8 @@ pub struct Editor {
     insert_char_buffer: Vec<u8>,
     mode: Mode,
 
-    text_viewer: TextViewer,
+    buffer: Rc<RefCell<TextBuffer>>,
+    text_viewer: Box<dyn Viewer>,
     rect: ViewerRect,
 }
 
@@ -26,13 +31,16 @@ impl Editor {
     pub fn new() -> anyhow::Result<Editor> {
         let terminal = Terminal::new()?;
         let rect = ViewerRect { h: terminal.height(), w: terminal.width(), i: 0, j: 0 };
+        let buffer = Rc::new(RefCell::new(TextBuffer::open("./test.txt")?));
         Ok(Editor {
             _mode: RawMode::enable_raw_mode().context("enable raw mode failed")?,
             stdin: std::io::stdin(),
             terminal,
             insert_char_buffer: vec![],
             mode: Mode::Normal,
-            text_viewer: TextViewer::open("./test.txt")?,
+
+            buffer: buffer.clone(),
+            text_viewer: Box::new(TextViewer::open(buffer.clone())?),
             rect,
         })
     }
