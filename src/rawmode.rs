@@ -1,4 +1,4 @@
-use libc::{winsize, STDIN_FILENO, STDOUT_FILENO, TIOCGWINSZ};
+use libc::STDIN_FILENO;
 use termios::{tcsetattr, Termios, TCSAFLUSH};
 
 pub struct RawMode {

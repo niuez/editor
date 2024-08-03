@@ -1,6 +1,6 @@
 pub mod text_viewer;
 
-use crate::{key::Key, terminal::Terminal};
+use crate::terminal::Terminal;
 
 #[derive(Debug, Clone)]
 pub struct BufferRect {
@@ -16,6 +16,14 @@ pub trait Draw {
 }
 
 pub trait Input {
-    fn input(&mut self, key: Key) -> anyhow::Result<()>;
+    fn move_left(&mut self) -> anyhow::Result<()> { Ok(()) }
+    fn move_right(&mut self) -> anyhow::Result<()> { Ok(()) }
+    fn move_up(&mut self) -> anyhow::Result<()> { Ok(()) }
+    fn move_down(&mut self) -> anyhow::Result<()> { Ok(()) }
+    fn insert_char(&mut self, _: char) -> anyhow::Result<()> { Ok(()) }
+    fn newline(&mut self) -> anyhow::Result<()> { Ok(()) }
+    fn backspace(&mut self) -> anyhow::Result<()> { Ok(()) }
 }
+
+pub trait Buffer: Draw + Input {}
 
