@@ -1,7 +1,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::buffer::text_buffer::TextBuffer;
+use crate::lsp::client::{LspClient, LspClientStartArg, path_to_uri};
+use crate::viewer::hover_viewer::HoverViewer;
 use crate::viewer::{ Draw, Input, Viewer, ViewerRect, text_viewer::TextViewer };
 use crate::rawmode::RawMode;
 use crate::terminal::Terminal;
@@ -22,8 +25,10 @@ pub struct Editor {
     insert_char_buffer: Vec<u8>,
     mode: Mode,
 
+    lsp_client: Option<Arc<LspClient>>,
     buffers: Vec<Rc<RefCell<TextBuffer>>>,
-    viewers: Vec<(Box<dyn Viewer>, ViewerRect)>,
+    viewers: Vec<(TextViewer<TextBuffer>, ViewerRect)>,
+    hover: HoverViewer,
     active: usize,
 }
 
@@ -39,8 +44,56 @@ impl Editor {
             insert_char_buffer: vec![],
             mode: Mode::Normal,
 
+            lsp_client: None,
             buffers: vec![buffer.clone()],
-            viewers: vec![(Box::new(TextViewer::open(buffer.clone())?), rect)],
+            viewers: vec![(TextViewer::open(buffer.clone())?, rect)],
+            hover: HoverViewer::empty(),
+            active: 0,
+        })
+    }
+
+    pub async fn new_clangd() -> anyhow::Result<Editor> {
+        let terminal = Terminal::new()?;
+        let rect = ViewerRect { h: terminal.height(), w: terminal.width(), i: 0, j: 0 };
+
+        let lsp_client = LspClient::start(LspClientStartArg { program: "clangd".to_owned() })?;
+        {
+            use lsp_types::*;
+            let client_capabilities = ClientCapabilities {
+                text_document: Some(TextDocumentClientCapabilities { hover: Some(HoverClientCapabilities { dynamic_registration: Some(true), content_format: Some(vec![MarkupKind::PlainText, MarkupKind::Markdown]) }), ..Default::default() }),
+                ..Default::default()
+            };
+
+            let work = WorkspaceFolder {
+                uri: path_to_uri("./")?,
+                name: "test".to_owned(),
+            };
+
+            let init_params = InitializeParams {
+                process_id: Some(std::process::id()),
+                capabilities: client_capabilities,
+                workspace_folders: Some(vec![work]),
+                ..Default::default()
+            };
+            let (recv, _handle) = lsp_client.request::<lsp_types::request::Initialize>(init_params).await?;
+            let _inited = recv.await??;
+            lsp_client.notify::<notification::Initialized>(InitializedParams {}).await?;
+        }
+
+        let lsp_client = Arc::new(lsp_client);
+
+        let buffer = Rc::new(RefCell::new(TextBuffer::open_with_lsp("./1.cpp", lsp_client.clone()).await?));
+        Ok(Editor {
+            _mode: RawMode::enable_raw_mode().context("enable raw mode failed")?,
+            stdin: std::io::stdin(),
+            terminal,
+            insert_char_buffer: vec![],
+            mode: Mode::Normal,
+
+            lsp_client: Some(lsp_client),
+            buffers: vec![buffer.clone()],
+            viewers: vec![(TextViewer::open(buffer.clone())?, rect)],
+            hover: HoverViewer::empty(),
             active: 0,
         })
     }
@@ -50,18 +103,39 @@ impl Editor {
         for (viewer, rect) in self.viewers.iter_mut() {
             viewer.draw_all(rect, &mut self.terminal)?;
         }
+        self.hover.draw_all(&ViewerRect { h: self.terminal.height() / 2, w: self.terminal.width(), i: self.terminal.height() / 2, j: 0 }, &mut self.terminal)?;
         let active_rect = self.viewers[self.active].1.clone();
         self.viewers[self.active].0.draw_cursor(&active_rect, &mut self.terminal)?;
         self.terminal.flush()
     }
 
-    fn normal_input(&mut self, key: Key) -> anyhow::Result<()> {
+    async fn normal_input(&mut self, key: Key) -> anyhow::Result<()> {
              if key == Key::char(b'j') { self.viewers[self.active].0.move_down() }
         else if key == Key::char(b'k') { self.viewers[self.active].0.move_up() }
         else if key == Key::char(b'h') { self.viewers[self.active].0.move_left() }
         else if key == Key::char(b'l') { self.viewers[self.active].0.move_right() }
         else if key == Key::char(b'i') { self.mode = Mode::Insert; Ok(()) }
         else if key == Key::ctrl(b'w') { self.active = (self.active + 1) % self.viewers.len(); Ok(()) }
+        else if key == Key::char(b'K') {
+            let recv = self.viewers[self.active].0.hover().await?;
+            self.hover = match recv {
+                Some((recv, _handle)) => {
+                    let res = recv.await??;
+                    res
+                        .map(|hover|
+                             if let lsp_types::HoverContents::Markup(content) = hover.contents {
+                                 HoverViewer::new(format!("{}", content.value))
+                             }
+                             else {
+                                 HoverViewer::empty()
+                             }
+                        )
+                        .unwrap_or(HoverViewer::empty())
+                }
+                None => HoverViewer::empty(),
+            };
+            Ok(())
+        }
         else { Ok(()) }
     }
 
@@ -99,7 +173,7 @@ impl Editor {
         Ok(())
     }
 
-    pub fn start(&mut self) -> anyhow::Result<()> {
+    pub async fn start(&mut self) -> anyhow::Result<()> {
         self.update_all()?;
         loop {
             if let Some(key) = Key::try_read_from_stdin(&mut self.stdin)? {
@@ -107,7 +181,7 @@ impl Editor {
                     break;
                 }
                 else if self.mode == Mode::Normal {
-                    self.normal_input(key)?;
+                    self.normal_input(key).await?;
                 }
                 else if self.mode == Mode::Insert {
                     self.insert_input(key)?;
@@ -119,6 +193,7 @@ impl Editor {
     }
 }
 
+/*
 impl Editor {
     pub fn multi_viewer_test() -> anyhow::Result<Self> {
         let terminal = Terminal::new()?;
@@ -142,3 +217,4 @@ impl Editor {
         })
     }
 }
+*/

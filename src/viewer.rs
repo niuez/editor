@@ -1,6 +1,7 @@
 pub mod text_viewer;
+pub mod hover_viewer;
 
-use crate::terminal::Terminal;
+use crate::{lsp::client::ResponseReceiver, terminal::Terminal};
 
 #[derive(Debug, Clone)]
 pub struct ViewerRect {
@@ -23,6 +24,7 @@ pub trait Input {
     fn insert_char(&mut self, _: char) -> anyhow::Result<()> { Ok(()) }
     fn newline(&mut self) -> anyhow::Result<()> { Ok(()) }
     fn backspace(&mut self) -> anyhow::Result<()> { Ok(()) }
+    fn hover(&self) -> impl std::future::Future<Output = anyhow::Result<Option<ResponseReceiver<lsp_types::request::HoverRequest>>>>;
 }
 
 pub trait Viewer: Draw + Input {}

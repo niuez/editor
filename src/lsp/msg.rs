@@ -1,7 +1,6 @@
-use std::{
-    fmt,
-    io::{self, BufRead, Write},
-};
+use std::{error::Error, fmt::{self, Display} };
+use tokio::io::{self, AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use std::io::Write;
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use anyhow::anyhow;
@@ -96,6 +95,14 @@ pub struct ResponseError {
     pub data: Option<serde_json::Value>,
 }
 
+impl Display for ResponseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl Error for ResponseError {}
+
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
 pub enum ErrorCode {
@@ -161,11 +168,11 @@ macro_rules! invalid_data {
 }
 
 impl Message {
-    pub fn read(r: &mut impl BufRead) -> io::Result<Option<Message>> {
-        Message::_read(r)
+    pub async fn read<R: AsyncBufReadExt + AsyncReadExt + Unpin>(r: &mut R) -> anyhow::Result<Option<Message>> {
+        Ok(Message::_read(r).await?)
     }
-    fn _read(r: &mut dyn BufRead) -> io::Result<Option<Message>> {
-        let text = match read_msg_text(r)? {
+    async fn _read<R: AsyncBufReadExt + AsyncReadExt + Unpin>(r: &mut R) -> anyhow::Result<Option<Message>> {
+        let text = match read_msg_text(r).await? {
             None => return Ok(None),
             Some(text) => text,
         };
@@ -173,16 +180,16 @@ impl Message {
         let msg = match serde_json::from_str(&text) {
             Ok(msg) => msg,
             Err(e) => {
-                return Err(invalid_data!("malformed LSP payload: {:?}", e));
+                return Err(invalid_data!("malformed LSP payload: {:?}", e).into());
             }
         };
 
         Ok(Some(msg))
     }
-    pub fn write(self, w: &mut impl Write) -> io::Result<()> {
-        self._write(w)
+    pub async fn write<W: AsyncWriteExt + Unpin>(self, w: &mut W) -> anyhow::Result<()> {
+        self._write(w).await
     }
-    fn _write(self, w: &mut dyn Write) -> io::Result<()> {
+    async fn _write<W: AsyncWriteExt + Unpin>(self, w: &mut W) -> anyhow::Result<()> {
         #[derive(Serialize)]
         struct JsonRpc {
             jsonrpc: &'static str,
@@ -190,7 +197,7 @@ impl Message {
             msg: Message,
         }
         let text = serde_json::to_string(&JsonRpc { jsonrpc: "2.0", msg: self })?;
-        write_msg_text(w, &text)
+        write_msg_text(w, &text).await
     }
 }
 
@@ -261,12 +268,12 @@ impl Notification {
     }
 }
 
-fn read_msg_text(inp: &mut dyn BufRead) -> io::Result<Option<String>> {
+async fn read_msg_text<R: AsyncBufReadExt + AsyncReadExt + Unpin>(inp: &mut R) -> io::Result<Option<String>> {
     let mut size = None;
     let mut buf = String::new();
     loop {
         buf.clear();
-        if inp.read_line(&mut buf)? == 0 {
+        if inp.read_line(&mut buf).await? == 0 {
             return Ok(None);
         }
         if !buf.ends_with("\r\n") {
@@ -287,17 +294,19 @@ fn read_msg_text(inp: &mut dyn BufRead) -> io::Result<Option<String>> {
     let size: usize = size.ok_or_else(|| invalid_data!("no Content-Length"))?;
     let mut buf = buf.into_bytes();
     buf.resize(size, 0);
-    inp.read_exact(&mut buf)?;
+    inp.read_exact(&mut buf).await?;
     let buf = String::from_utf8(buf).map_err(invalid_data)?;
     eprintln!("< {}", buf);
     Ok(Some(buf))
 }
 
-fn write_msg_text(out: &mut dyn Write, msg: &str) -> io::Result<()> {
+async fn write_msg_text<W: AsyncWriteExt + Unpin>(out: &mut W, msg: &str) -> anyhow::Result<()> {
     eprintln!("> {}", msg);
-    write!(out, "Content-Length: {}\r\n\r\n", msg.len())?;
-    out.write_all(msg.as_bytes())?;
-    out.flush()?;
+    let mut buf = Vec::<u8>::new();
+    write!(buf, "Content-Length: {}\r\n\r\n", msg.len())?;
+    out.write_all(&buf).await?;
+    out.write_all(msg.as_bytes()).await?;
+    out.flush().await?;
     Ok(())
 }
 

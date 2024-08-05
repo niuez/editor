@@ -1,6 +1,6 @@
 use std::{cell::RefCell, fs::File, io::BufReader, rc::Rc};
 
-use crate::{buffer::Buffer, terminal::Terminal};
+use crate::{buffer::Buffer, lsp::client::ResponseReceiver, terminal::Terminal};
 use super::{Draw, Input, Viewer, ViewerRect};
 
 pub struct TextViewer<B: Buffer> {
@@ -47,7 +47,7 @@ impl<B: Buffer> Draw for TextViewer<B> {
             if let Some(slice) = rope.get_line(i) {
                 let len = slice.len_chars();
                 terminal.set_cursor(rect.i + i - self.top, rect.j)?;
-                if self.left <= len - 1 {
+                if len > 0 && self.left <= len - 1 {
                     terminal.write(format!("{}", slice.slice(self.left..(len - 1).min(self.left + rect.w))).as_bytes())?;
                 }
             }
@@ -104,6 +104,11 @@ impl<B: Buffer> Input for TextViewer<B> {
     fn backspace(&mut self) -> anyhow::Result<()> {
         self.cursor = self.buffer.borrow_mut().backspace(self.cursor)?;
         Ok(())
+    }
+
+
+    async fn hover(&self) -> anyhow::Result<Option<ResponseReceiver<lsp_types::request::HoverRequest>>> {
+        Ok(self.buffer.borrow_mut().hover(self.cursor).await?)
     }
 }
 
