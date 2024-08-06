@@ -28,7 +28,6 @@ pub struct Editor {
     lsp_client: Option<Arc<LspClient>>,
     buffers: Vec<Rc<RefCell<TextBuffer>>>,
     viewers: Vec<(TextViewer<TextBuffer>, ViewerRect)>,
-    hover: HoverViewer,
     active: usize,
 }
 
@@ -47,7 +46,6 @@ impl Editor {
             lsp_client: None,
             buffers: vec![buffer.clone()],
             viewers: vec![(TextViewer::open(buffer.clone())?, rect)],
-            hover: HoverViewer::empty(),
             active: 0,
         })
     }
@@ -93,7 +91,6 @@ impl Editor {
             lsp_client: Some(lsp_client),
             buffers: vec![buffer.clone()],
             viewers: vec![(TextViewer::open(buffer.clone())?, rect)],
-            hover: HoverViewer::empty(),
             active: 0,
         })
     }
@@ -103,7 +100,6 @@ impl Editor {
         for (viewer, rect) in self.viewers.iter_mut() {
             viewer.draw_all(rect, &mut self.terminal)?;
         }
-        self.hover.draw_all(&ViewerRect { h: self.terminal.height() / 2, w: self.terminal.width(), i: self.terminal.height() / 2, j: 0 }, &mut self.terminal)?;
         let active_rect = self.viewers[self.active].1.clone();
         self.viewers[self.active].0.draw_cursor(&active_rect, &mut self.terminal)?;
         self.terminal.flush()
@@ -117,23 +113,7 @@ impl Editor {
         else if key == Key::char(b'i') { self.mode = Mode::Insert; Ok(()) }
         else if key == Key::ctrl(b'w') { self.active = (self.active + 1) % self.viewers.len(); Ok(()) }
         else if key == Key::char(b'K') {
-            let recv = self.viewers[self.active].0.hover().await?;
-            self.hover = match recv {
-                Some(recv) => {
-                    let res = recv.await_result().await?.0?;
-                    res
-                        .map(|hover|
-                             if let lsp_types::HoverContents::Markup(content) = hover.contents {
-                                 HoverViewer::new(format!("{}", content.value))
-                             }
-                             else {
-                                 HoverViewer::empty()
-                             }
-                        )
-                        .unwrap_or(HoverViewer::empty())
-                }
-                None => HoverViewer::empty(),
-            };
+            self.viewers[self.active].0.hover().await?;
             Ok(())
         }
         else { Ok(()) }
@@ -186,8 +166,8 @@ impl Editor {
                 else if self.mode == Mode::Insert {
                     self.insert_input(key)?;
                 }
-                self.update_all()?;
             }
+            self.update_all()?;
         }
         Ok(())
     }

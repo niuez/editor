@@ -24,7 +24,7 @@ pub trait Input {
     fn insert_char(&mut self, _: char) -> anyhow::Result<()> { Ok(()) }
     fn newline(&mut self) -> anyhow::Result<()> { Ok(()) }
     fn backspace(&mut self) -> anyhow::Result<()> { Ok(()) }
-    fn hover(&self) -> impl std::future::Future<Output = anyhow::Result<Option<ResponseReceiver<lsp_types::request::HoverRequest>>>>;
+    fn hover(&mut self) -> impl std::future::Future<Output = anyhow::Result<()>>;
 }
 
 pub trait Viewer: Draw + Input {}

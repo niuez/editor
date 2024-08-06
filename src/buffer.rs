@@ -2,7 +2,7 @@ pub mod text_buffer;
 
 use ropey::Rope;
 
-use crate::lsp::client::ResponseReceiver;
+use crate::lsp::{client::ResponseReceiver, method::hover::HoverFetch};
 
 pub type CursorPos = (usize, usize);
 
@@ -13,5 +13,5 @@ pub trait Buffer {
     fn insert_char(&mut self, cursor: CursorPos, c: char) -> anyhow::Result<CursorPos>;
     fn newline(&mut self, cursor: CursorPos) -> anyhow::Result<CursorPos>;
     fn backspace(&mut self, cursor: CursorPos) -> anyhow::Result<CursorPos>;
-    fn hover(&self, cursor: CursorPos) -> impl std::future::Future<Output = anyhow::Result<Option<ResponseReceiver<lsp_types::request::HoverRequest>>>>;
+    fn hover(&self, cursor: CursorPos) -> impl std::future::Future<Output = anyhow::Result<Option<HoverFetch>>>;
 }

@@ -1,13 +1,14 @@
 use std::{cell::RefCell, fs::File, io::BufReader, rc::Rc};
 
-use crate::{buffer::Buffer, lsp::client::ResponseReceiver, terminal::Terminal};
-use super::{Draw, Input, Viewer, ViewerRect};
+use crate::{buffer::Buffer, lsp::{client::ResponseReceiver, method::hover::HoverFetch}, terminal::Terminal};
+use super::{Draw, Input, Viewer, ViewerRect, hover_viewer::HoverViewer};
 
 pub struct TextViewer<B: Buffer> {
     buffer: Rc<RefCell<B>>,
     top: usize,
     left: usize,
     cursor: (usize, usize),
+    hover: HoverFetch
 }
 
 impl<B: Buffer> TextViewer<B> {
@@ -18,6 +19,7 @@ impl<B: Buffer> TextViewer<B> {
                 top: 0,
                 left: 0,
                 cursor: (0, 0),
+                hover: HoverFetch::Got(None),
             }
         )
     }
@@ -52,6 +54,17 @@ impl<B: Buffer> Draw for TextViewer<B> {
                 }
             }
         }
+        if let Some(&Some(ref hover)) = self.hover.try_get_result()? {
+            if hover.pos == self.cursor {
+                let mut view = HoverViewer::new(hover.text.to_owned());
+                view.draw_all(&ViewerRect {
+                    h: rect.h - self.cursor.0 - 1,
+                    w: rect.w - self.cursor.1,
+                    i: rect.i + self.cursor.0 + 1,
+                    j: rect.j + self.cursor.1,
+                }, terminal)?;
+            }
+        }
         Ok(())
     }
     fn draw_cursor(&mut self, rect: &ViewerRect, terminal: &mut Terminal) -> anyhow::Result<()> {
@@ -71,6 +84,7 @@ impl<B: Buffer> Input for TextViewer<B> {
         if self.cursor.1 > 0 {
             self.cursor.1 -= 1;
         }
+        self.hover = HoverFetch::Got(None);
         Ok(())
     }
     fn move_right(&mut self) -> anyhow::Result<()> {
@@ -107,8 +121,9 @@ impl<B: Buffer> Input for TextViewer<B> {
     }
 
 
-    async fn hover(&self) -> anyhow::Result<Option<ResponseReceiver<lsp_types::request::HoverRequest>>> {
-        Ok(self.buffer.borrow_mut().hover(self.cursor).await?)
+    async fn hover(&mut self) -> anyhow::Result<()> {
+        self.hover = self.buffer.borrow_mut().hover(self.cursor).await?.unwrap_or(HoverFetch::Got(None));
+        Ok(())
     }
 }
 

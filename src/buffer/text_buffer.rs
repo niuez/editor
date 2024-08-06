@@ -1,6 +1,6 @@
 use std::{fs::File, io::BufReader, sync::Arc};
 use ropey::Rope;
-use crate::lsp::client::{LspClient, ResponseReceiver, path_to_uri};
+use crate::lsp::{client::{LspClient, ResponseReceiver, path_to_uri}, method::hover::HoverFetch};
 
 use super::{ Buffer, CursorPos };
 
@@ -79,20 +79,10 @@ impl Buffer for TextBuffer {
         }
         Ok(cursor)
     }
-    async fn hover(&self, cursor: CursorPos) -> anyhow::Result<Option<ResponseReceiver<lsp_types::request::HoverRequest>>> {
+    async fn hover(&self, cursor: CursorPos) -> anyhow::Result<Option<HoverFetch>> {
         match self.lsp_client {
             Some(ref lsp_client) => {
-                let receiver = lsp_client.request::<lsp_types::request::HoverRequest>(
-                    lsp_types::HoverParams {
-                        text_document_position_params: lsp_types::TextDocumentPositionParams {
-                            text_document: lsp_types::TextDocumentIdentifier { uri: path_to_uri(&self.filename)? }, 
-                            position: lsp_types::Position { line: cursor.0 as u32, character: cursor.1 as u32 },
-                        },
-                        work_done_progress_params: lsp_types::WorkDoneProgressParams { work_done_token: None }
-                    }
-                ).await?;
-                Ok(Some(receiver))
-
+                Ok(Some(HoverFetch::new(lsp_client, &self.filename, cursor).await?))
             }
             None => {
                 Ok(None)

@@ -3,7 +3,7 @@ use anyhow::{anyhow, Context};
 
 use tokio::{sync::{Mutex, Notify, mpsc::{ self, Receiver, Sender }}, task::JoinHandle};
 
-use std::{cell::RefCell, collections::HashMap, str::FromStr, sync::Arc};
+use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 pub struct LspClient {
     lsp_process_child: tokio::process::Child,
