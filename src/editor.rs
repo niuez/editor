@@ -75,8 +75,8 @@ impl Editor {
                 workspace_folders: Some(vec![work]),
                 ..Default::default()
             };
-            let (recv, _handle) = lsp_client.request::<lsp_types::request::Initialize>(init_params).await?;
-            let _inited = recv.await??;
+            let recv = lsp_client.request::<lsp_types::request::Initialize>(init_params).await?;
+            let _inited = recv.await_result().await?;
             lsp_client.notify::<notification::Initialized>(InitializedParams {}).await?;
         }
 
@@ -119,8 +119,8 @@ impl Editor {
         else if key == Key::char(b'K') {
             let recv = self.viewers[self.active].0.hover().await?;
             self.hover = match recv {
-                Some((recv, _handle)) => {
-                    let res = recv.await??;
+                Some(recv) => {
+                    let res = recv.await_result().await?.0?;
                     res
                         .map(|hover|
                              if let lsp_types::HoverContents::Markup(content) = hover.contents {

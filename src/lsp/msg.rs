@@ -2,7 +2,7 @@ use std::{error::Error, fmt::{self, Display} };
 use tokio::io::{self, AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use std::io::Write;
 
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de::DeserializeOwned};
 use anyhow::anyhow;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -81,10 +81,19 @@ pub struct Response {
     // to decode the request's id. Ignore this special case
     // and just die horribly.
     pub id: RequestId,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with="deserialize_result")]
     pub result: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<ResponseError>,
+}
+
+fn deserialize_result<'de, D>(deserializer: D) -> Result<Option<serde_json::Value>, D::Error>
+    where D: Deserializer<'de>,
+{
+    Ok(Deserialize::deserialize(deserializer)
+       .map(|op: Option<serde_json::Value>| Some(op.unwrap_or(serde_json::Value::Null)))
+       .unwrap_or(None)
+    )
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

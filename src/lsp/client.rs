@@ -90,14 +90,16 @@ impl LspClient {
         RequestId::from(ans)
     }
 
-    pub async fn request<R: lsp_types::request::Request>(&self, param: R::Params) -> anyhow::Result<ResponseReceiver<R>> {
+    pub async fn request<R: lsp_types::request::Request>(&self, param: R::Params) -> anyhow::Result<ResponseReceiver<R>>
+    where R::Params: Clone
+    {
         let (sender, receiver) = tokio::sync::oneshot::channel::<Response>();
         let id = self.get_new_id().await;
         {
             self.response_senders.as_ref().lock().await.insert(id.clone(), sender);
         }
 
-        let req = Request::new(id, R::METHOD.to_owned(), param);
+        let req = Request::new(id, R::METHOD.to_owned(), param.clone());
         let msg = Message::Request(req);
         self.to_server_sender.send(msg).await?;
 
@@ -113,7 +115,7 @@ impl LspClient {
                 }
             }
         });
-        Ok((receiver2, handle))
+        Ok(ResponseReceiver { receiver: receiver2, handle, param })
     }
 
     pub async fn notify<N: lsp_types::notification::Notification>(&self, param: N::Params) -> anyhow::Result<()> {
@@ -124,7 +126,35 @@ impl LspClient {
     }
 }
 
-pub type ResponseReceiver<R> = (tokio::sync::oneshot::Receiver<ResponseResult<R>>, JoinHandle<anyhow::Result<()>>);
+pub struct ResponseReceiver<R: lsp_types::request::Request> {
+    pub receiver: tokio::sync::oneshot::Receiver<ResponseResult<R>>,
+    handle: JoinHandle<anyhow::Result<()>>,
+    pub param: R::Params,
+}
+
+impl<R: lsp_types::request::Request> ResponseReceiver<R> {
+    pub fn abort_request(self) {
+        self.handle.abort();
+    }
+
+    pub async fn await_result(self) -> anyhow::Result<(ResponseResult<R>, R::Params)> {
+        Ok((self.receiver.await?, self.param))
+    }
+    pub fn try_get_response(mut self) -> TryGetResponse<R> {
+        match self.receiver.try_recv() {
+            Err(tokio::sync::oneshot::error::TryRecvError::Empty) => TryGetResponse::Yet(self),
+            Ok(resp) => TryGetResponse::Receive((resp, self.param)),
+            Err(tokio::sync::oneshot::error::TryRecvError::Closed) => unreachable!("closed???")
+
+        }
+    }
+}
+
+pub enum TryGetResponse<R: lsp_types::request::Request> {
+    Receive((ResponseResult<R>, R::Params)),
+    Yet(ResponseReceiver<R>),
+}
+
 pub type ResponseResult<R> = anyhow::Result<<R as lsp_types::request::Request>::Result>;
 
 
