@@ -1,6 +1,7 @@
 use super::msg::{Message, Notification, Request, RequestId, Response, ResponseError};
 use anyhow::{anyhow, Context};
 
+use lsp_types::ServerCapabilities;
 use tokio::{sync::{Mutex, Notify, mpsc::{ self, Receiver, Sender }}, task::JoinHandle};
 
 use std::{collections::HashMap, str::FromStr, sync::Arc};
@@ -14,6 +15,8 @@ pub struct LspClient {
 
     response_senders: Arc<Mutex<HashMap<RequestId, tokio::sync::oneshot::Sender<Response>>>>,
 
+    server_capabilities: ServerCapabilities,
+
     id_cnt: Mutex<i32>,
 }
 
@@ -22,7 +25,7 @@ pub struct LspClientStartArg {
 }
 
 impl LspClient {
-    pub fn start(start_arg: LspClientStartArg) -> anyhow::Result<Self> {
+    pub async fn start(start_arg: LspClientStartArg) -> anyhow::Result<Self> {
         let mut child = tokio::process::Command::new(start_arg.program)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
@@ -72,15 +75,42 @@ impl LspClient {
                 Ok(())
             });
 
-        Ok(Self {
+        let mut client = Self {
             lsp_process_child: child,
             from_server_thread,
             from_server_receiver,
             to_server_thread,
             to_server_sender,
             response_senders,
+            server_capabilities: ServerCapabilities::default(),
             id_cnt: Mutex::new(0),
-        })
+        };
+        client.initialize().await?;
+        Ok(client)
+    }
+
+    pub async fn initialize(&mut self) -> anyhow::Result<()> {
+        use lsp_types::*;
+        let client_capabilities = ClientCapabilities::default();
+
+        let work = WorkspaceFolder {
+            uri: path_to_uri("./")?,
+            name: "test".to_owned(),
+        };
+
+        let init_params = InitializeParams {
+            process_id: Some(std::process::id()),
+            capabilities: client_capabilities,
+            workspace_folders: Some(vec![work]),
+            ..Default::default()
+        };
+        let recv = self.request::<lsp_types::request::Initialize>(init_params).await?;
+        let inited = recv.await_result().await?.0?;
+
+        self.server_capabilities = inited.capabilities;
+
+        self.notify::<notification::Initialized>(InitializedParams {}).await?;
+        Ok(())
     }
 
     async fn get_new_id(&self) -> RequestId {

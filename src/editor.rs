@@ -54,29 +54,7 @@ impl Editor {
         let terminal = Terminal::new()?;
         let rect = ViewerRect { h: terminal.height(), w: terminal.width(), i: 0, j: 0 };
 
-        let lsp_client = LspClient::start(LspClientStartArg { program: "clangd".to_owned() })?;
-        {
-            use lsp_types::*;
-            let client_capabilities = ClientCapabilities {
-                text_document: Some(TextDocumentClientCapabilities { hover: Some(HoverClientCapabilities { dynamic_registration: Some(true), content_format: Some(vec![MarkupKind::PlainText, MarkupKind::Markdown]) }), ..Default::default() }),
-                ..Default::default()
-            };
-
-            let work = WorkspaceFolder {
-                uri: path_to_uri("./")?,
-                name: "test".to_owned(),
-            };
-
-            let init_params = InitializeParams {
-                process_id: Some(std::process::id()),
-                capabilities: client_capabilities,
-                workspace_folders: Some(vec![work]),
-                ..Default::default()
-            };
-            let recv = lsp_client.request::<lsp_types::request::Initialize>(init_params).await?;
-            let _inited = recv.await_result().await?;
-            lsp_client.notify::<notification::Initialized>(InitializedParams {}).await?;
-        }
+        let lsp_client = LspClient::start(LspClientStartArg { program: "clangd".to_owned() }).await?;
 
         let lsp_client = Arc::new(lsp_client);
 

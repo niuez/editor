@@ -1,6 +1,6 @@
 use std::{fs::File, io::BufReader, sync::Arc};
 use ropey::Rope;
-use crate::lsp::{client::{LspClient, ResponseReceiver, path_to_uri}, method::{didchange::DidChangeNotifyBuilder, hover::HoverFetch}};
+use crate::lsp::{client::{LspClient, ResponseReceiver, path_to_uri}, method::{didchange::DidChangeNotifyBuilder, hover::{HoverFetch, HoverParam}}};
 
 use super::{ Buffer, CursorPos };
 
@@ -120,7 +120,8 @@ impl Buffer for TextBuffer {
     async fn hover(&self, cursor: CursorPos) -> anyhow::Result<Option<HoverFetch>> {
         match self.lsp_client {
             Some(ref lsp_client) => {
-                Ok(Some(HoverFetch::new(lsp_client, &self.filename, cursor).await?))
+                let param = HoverParam::new(&self.filename, cursor)?;
+                Ok(Some(HoverFetch::new(lsp_client, param).await?))
             }
             None => {
                 Ok(None)
