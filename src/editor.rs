@@ -119,7 +119,7 @@ impl Editor {
         else { Ok(()) }
     }
 
-    fn insert_input(&mut self, key: Key) -> anyhow::Result<()> {
+    async fn insert_input(&mut self, key: Key) -> anyhow::Result<()> {
         if self.insert_char_buffer.len() > 0 {
             if let Key::Character(ch) = key {
                 self.insert_char_buffer.push(ch);
@@ -132,10 +132,10 @@ impl Editor {
             self.mode = Mode::Normal;
         }
         else if key == Key::backspace() {
-            self.viewers[self.active].0.backspace()?;
+            self.viewers[self.active].0.backspace().await?;
         }
         else if key == Key::char(b'\r') {
-            self.viewers[self.active].0.newline()?;
+            self.viewers[self.active].0.newline().await?;
         }
         else if let Key::Character(ch) = key {
             if ch >= 32 {
@@ -145,7 +145,7 @@ impl Editor {
         if self.insert_char_buffer.len() > 0 {
             if let Ok(st) = String::from_utf8(self.insert_char_buffer.clone()) {
                 for c in st.chars() {
-                    self.viewers[self.active].0.insert_char(c)?;
+                    self.viewers[self.active].0.insert_char(c).await?;
                 }
                 self.insert_char_buffer.clear();
             }
@@ -164,7 +164,7 @@ impl Editor {
                     self.normal_input(key).await?;
                 }
                 else if self.mode == Mode::Insert {
-                    self.insert_input(key)?;
+                    self.insert_input(key).await?;
                 }
             }
             self.update_all()?;

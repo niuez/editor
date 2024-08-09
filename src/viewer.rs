@@ -21,9 +21,9 @@ pub trait Input {
     fn move_right(&mut self) -> anyhow::Result<()> { Ok(()) }
     fn move_up(&mut self) -> anyhow::Result<()> { Ok(()) }
     fn move_down(&mut self) -> anyhow::Result<()> { Ok(()) }
-    fn insert_char(&mut self, _: char) -> anyhow::Result<()> { Ok(()) }
-    fn newline(&mut self) -> anyhow::Result<()> { Ok(()) }
-    fn backspace(&mut self) -> anyhow::Result<()> { Ok(()) }
+    fn insert_char(&mut self, _: char) -> impl std::future::Future<Output=anyhow::Result<()>> { async { Ok(()) } }
+    fn newline(&mut self) -> impl std::future::Future<Output=anyhow::Result<()>> { async { Ok(()) } }
+    fn backspace(&mut self) -> impl std::future::Future<Output=anyhow::Result<()>> { async { Ok(()) } }
     fn hover(&mut self) -> impl std::future::Future<Output = anyhow::Result<()>>;
 }
 

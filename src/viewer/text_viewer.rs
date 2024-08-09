@@ -107,16 +107,16 @@ impl<B: Buffer> Input for TextViewer<B> {
         self.cursor.1 = self.cursor.1.min(self.buffer.borrow().len_line_chars(self.cursor.0) - 1);
         Ok(())
     }
-    fn insert_char(&mut self, c: char) -> anyhow::Result<()> {
-        self.cursor = self.buffer.borrow_mut().insert_char(self.cursor, c)?;
+    async fn insert_char(&mut self, c: char) -> anyhow::Result<()> {
+        self.cursor = self.buffer.borrow_mut().insert_char(self.cursor, c).await?;
         Ok(())
     }
-    fn newline(&mut self) -> anyhow::Result<()> {
-        self.cursor = self.buffer.borrow_mut().newline(self.cursor)?;
+    async fn newline(&mut self) -> anyhow::Result<()> {
+        self.cursor = self.buffer.borrow_mut().newline(self.cursor).await?;
         Ok(())
     }
-    fn backspace(&mut self) -> anyhow::Result<()> {
-        self.cursor = self.buffer.borrow_mut().backspace(self.cursor)?;
+    async fn backspace(&mut self) -> anyhow::Result<()> {
+        self.cursor = self.buffer.borrow_mut().backspace(self.cursor).await?;
         Ok(())
     }
 
