@@ -44,6 +44,18 @@ impl DidChangeNotifyBuilder {
         self
     }
 
+    pub fn edit(mut self, start: CursorPos, end: CursorPos, text: String) -> Self {
+        self.changes.push(TextDocumentContentChangeEvent {
+            range: Some(lsp_types::Range {
+                start: Position::new(start.0 as u32, start.1 as u32),
+                end: Position::new(end.0 as u32, end.1 as u32),
+            }),
+            range_length: None,
+            text,
+        });
+        self
+    }
+
     pub async fn notify(self, client: &LspClient) -> anyhow::Result<Self> {
         client.notify::<DidChangeTextDocument>(
             DidChangeTextDocumentParams {

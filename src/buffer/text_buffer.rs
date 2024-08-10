@@ -1,6 +1,6 @@
 use std::{fs::File, io::BufReader, sync::Arc};
 use ropey::Rope;
-use crate::lsp::{client::{LspClient, ResponseReceiver, path_to_uri}, method::{didchange::DidChangeNotifyBuilder, hover::{HoverFetch, HoverParam}}};
+use crate::lsp::{client::{LspClient, ResponseReceiver, path_to_uri}, method::{completion::{CompletionFetch, CompletionParam}, didchange::DidChangeNotifyBuilder, hover::{HoverFetch, HoverParam}}};
 
 use super::{ Buffer, CursorPos };
 
@@ -117,11 +117,47 @@ impl Buffer for TextBuffer {
         }
         Ok(cursor)
     }
+
+    async fn edit(&mut self, mut start: CursorPos, end: CursorPos, text: &str) -> anyhow::Result<CursorPos> {
+        let sdx = self.rope.line_to_char(start.0);
+        let edx = self.rope.line_to_char(end.0);
+        self.rope.remove(sdx + start.1 .. edx + end.1);
+        self.rope.insert(sdx + start.1, text);
+        if let Some(client) = self.lsp_client.as_ref() {
+            self.version += 1;
+            DidChangeNotifyBuilder::new(&self.filename, self.version)?
+                .edit(start, end, text.to_owned())
+                .notify(client).await?;
+        }
+        for c in text.chars() {
+            if c == '\n' {
+                start.0 += 1;
+                start.1 = 0;
+            }
+            else {
+                start.1 += 1;
+            }
+        }
+        Ok(start)
+    }
+
     async fn hover(&self, cursor: CursorPos) -> anyhow::Result<Option<HoverFetch>> {
         match self.lsp_client {
             Some(ref lsp_client) => {
                 let param = HoverParam::new(&self.filename, cursor)?;
                 Ok(Some(HoverFetch::new(lsp_client, param).await?))
+            }
+            None => {
+                Ok(None)
+            }
+        }
+    }
+
+    async fn completion(&self, cursor: CursorPos) -> anyhow::Result<Option<CompletionFetch>> {
+        match self.lsp_client {
+            Some(ref lsp_client) => {
+                let param = CompletionParam::new(&self.filename, cursor)?;
+                Ok(Some(CompletionFetch::new(lsp_client, param).await?))
             }
             None => {
                 Ok(None)

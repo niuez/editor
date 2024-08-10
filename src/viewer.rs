@@ -25,6 +25,8 @@ pub trait Input {
     fn newline(&mut self) -> impl std::future::Future<Output=anyhow::Result<()>> { async { Ok(()) } }
     fn backspace(&mut self) -> impl std::future::Future<Output=anyhow::Result<()>> { async { Ok(()) } }
     fn hover(&mut self) -> impl std::future::Future<Output = anyhow::Result<()>>;
+    fn completion(&mut self) -> impl std::future::Future<Output = anyhow::Result<()>>;
+    fn do_completion(&mut self) -> impl std::future::Future<Output = anyhow::Result<()>>;
 }
 
 pub trait Viewer: Draw + Input {}

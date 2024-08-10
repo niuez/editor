@@ -1,5 +1,3 @@
-use std::future::Future;
-
 use super::client::{LspClient, ResponseReceiver, TryGetResponse};
 
 pub mod hover;

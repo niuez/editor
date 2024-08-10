@@ -94,6 +94,14 @@ impl Editor {
             self.viewers[self.active].0.hover().await?;
             Ok(())
         }
+        else if key == Key::char(b'C') {
+            self.viewers[self.active].0.completion().await?;
+            Ok(())
+        }
+        else if key == Key::char(b'D') {
+            self.viewers[self.active].0.do_completion().await?;
+            Ok(())
+        }
         else { Ok(()) }
     }
 

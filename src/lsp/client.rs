@@ -27,6 +27,7 @@ pub struct LspClientStartArg {
 impl LspClient {
     pub async fn start(start_arg: LspClientStartArg) -> anyhow::Result<Self> {
         let mut child = tokio::process::Command::new(start_arg.program)
+            //.arg("--log=verbose")
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::io::stderr())

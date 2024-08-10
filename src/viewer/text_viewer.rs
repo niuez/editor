@@ -1,6 +1,8 @@
 use std::{cell::RefCell, fs::File, io::BufReader, rc::Rc};
 
-use crate::{buffer::Buffer, lsp::{client::ResponseReceiver, method::hover::HoverFetch}, terminal::Terminal};
+use lsp_types::{CompletionResponse, CompletionTextEdit};
+
+use crate::{buffer::Buffer, lsp::{client::ResponseReceiver, method::{completion::CompletionFetch, hover::HoverFetch}}, terminal::Terminal};
 use super::{Draw, Input, Viewer, ViewerRect, hover_viewer::HoverViewer};
 
 pub struct TextViewer<B: Buffer> {
@@ -8,7 +10,8 @@ pub struct TextViewer<B: Buffer> {
     top: usize,
     left: usize,
     cursor: (usize, usize),
-    hover: HoverFetch
+    hover: HoverFetch,
+    completion: CompletionFetch,
 }
 
 impl<B: Buffer> TextViewer<B> {
@@ -20,6 +23,7 @@ impl<B: Buffer> TextViewer<B> {
                 left: 0,
                 cursor: (0, 0),
                 hover: HoverFetch::Got(None),
+                completion: CompletionFetch::Got(None),
             }
         )
     }
@@ -54,9 +58,32 @@ impl<B: Buffer> Draw for TextViewer<B> {
                 }
             }
         }
+        /*
         if let Some(&Some(ref hover)) = self.hover.try_get_result()? {
             if hover.pos == self.cursor {
                 let mut view = HoverViewer::new(hover.text.to_owned());
+                view.draw_all(&ViewerRect {
+                    h: rect.h - self.cursor.0 - 1,
+                    w: rect.w - self.cursor.1,
+                    i: rect.i + self.cursor.0 + 1,
+                    j: rect.j + self.cursor.1,
+                }, terminal)?;
+            }
+        }
+        */
+
+        if let Some(&Some(ref completion)) = self.completion.try_get_result()? {
+            if completion.1 == self.cursor {
+                let text = match completion.0 {
+                    CompletionResponse::Array(ref arr) => {
+                        arr.iter().map(|a| a.label.to_owned()).collect::<Vec<_>>().join("\n")
+                    }
+                    CompletionResponse::List(ref list) => {
+                        list.items.iter().map(|a| a.label.to_owned()).collect::<Vec<_>>().join("\n")
+                    }
+                };
+
+                let mut view = HoverViewer::new(text.to_owned());
                 view.draw_all(&ViewerRect {
                     h: rect.h - self.cursor.0 - 1,
                     w: rect.w - self.cursor.1,
@@ -75,6 +102,45 @@ impl<B: Buffer> Draw for TextViewer<B> {
         assert!(self.cursor.1 < self.left + rect.w);
 
         terminal.set_cursor(self.cursor.0 - self.top + rect.i, self.cursor.1 - self.left + rect.j)?;
+        Ok(())
+    }
+}
+
+impl<B: Buffer> TextViewer<B> {
+    async fn do_completion_raw(&mut self) -> anyhow::Result<()> {
+        if let Some(&Some(ref completion)) = self.completion.try_get_result()? {
+            if completion.1 == self.cursor {
+                let item = match completion.0 {
+                    CompletionResponse::Array(ref arr) => {
+                        arr.get(0)
+                    }
+                    CompletionResponse::List(ref list) => {
+                        if list.is_incomplete {
+                            None
+                        }
+                        else {
+                            list.items.get(0)
+                        }
+                    }
+                };
+                eprintln!("complete = {:?}", item);
+                if let Some(item) = item {
+                    match item.text_edit.as_ref() {
+                        Some(CompletionTextEdit::Edit(edit)) => {
+                            self.buffer.borrow_mut().edit((edit.range.start.line as usize, edit.range.start.character as usize), (edit.range.end.line as usize, edit.range.end.character as usize), &edit.new_text).await?;
+                        }
+                        None => {}
+                        _ => unimplemented!(),
+                    }
+
+                    if let Some(edits) = item.additional_text_edits.as_ref() {
+                        for edit in edits {
+                            self.buffer.borrow_mut().edit((edit.range.start.line as usize, edit.range.start.character as usize), (edit.range.end.line as usize, edit.range.end.character as usize), &edit.new_text).await?;
+                        }
+                    }
+                }
+            }
+        }
         Ok(())
     }
 }
@@ -124,6 +190,15 @@ impl<B: Buffer> Input for TextViewer<B> {
     async fn hover(&mut self) -> anyhow::Result<()> {
         self.hover = self.buffer.borrow_mut().hover(self.cursor).await?.unwrap_or(HoverFetch::Got(None));
         Ok(())
+    }
+
+    async fn completion(&mut self) -> anyhow::Result<()> {
+        self.completion = self.buffer.borrow_mut().completion(self.cursor).await?.unwrap_or(CompletionFetch::Got(None));
+        Ok(())
+    }
+
+    async fn do_completion(&mut self) -> anyhow::Result<()> {
+        self.do_completion_raw().await
     }
 }
 
