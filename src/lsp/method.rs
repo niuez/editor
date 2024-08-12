@@ -71,5 +71,24 @@ where
         })
     }
 
+    pub fn try_get_result_mut(&mut self) -> anyhow::Result<Option<&mut Res>> {
+        let mut v = std::mem::replace(self, Self::Tmp);
+        v = match v {
+            Self::Yet(receiver) => {
+                match receiver.try_get_response() {
+                    TryGetResponse::Yet(receiver) => Self::Yet(receiver),
+                    TryGetResponse::Receive(resp) => Self::Got(resp.0.map(|r| Res::from_response(r, resp.1))?),
+                }
+            }
+            Self::Got(r) => Self::Got(r),
+            _ => unreachable!(),
+        };
+        *self = v;
+        Ok(match self {
+            Self::Yet(_) => None,
+            Self::Got(ref mut r) => Some(r),
+            _ => unreachable!(),
+        })
+    }
 }
 

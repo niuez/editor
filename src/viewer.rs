@@ -1,5 +1,6 @@
 pub mod text_viewer;
 pub mod hover_viewer;
+pub mod completion_viewer;
 
 use crate::{lsp::client::ResponseReceiver, terminal::Terminal};
 
@@ -27,6 +28,8 @@ pub trait Input {
     fn hover(&mut self) -> impl std::future::Future<Output = anyhow::Result<()>>;
     fn completion(&mut self) -> impl std::future::Future<Output = anyhow::Result<()>>;
     fn do_completion(&mut self) -> impl std::future::Future<Output = anyhow::Result<()>>;
+    fn completion_next(&mut self) -> impl std::future::Future<Output = anyhow::Result<()>>;
+    fn completion_prev(&mut self) -> impl std::future::Future<Output = anyhow::Result<()>>;
 }
 
 pub trait Viewer: Draw + Input {}

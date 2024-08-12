@@ -1,6 +1,6 @@
 use lsp_types::{CompletionParams, PartialResultParams, Position, Uri, WorkDoneProgressParams, request::{Request, Completion}};
 
-use crate::{buffer::CursorPos, lsp::client::path_to_uri};
+use crate::{buffer::CursorPos, lsp::client::path_to_uri, viewer::completion_viewer::CompletionViewer};
 
 use super::{LspFetch, LspParam, LspResult};
 
@@ -34,15 +34,15 @@ impl LspParam for CompletionParam {
 }
 
 
-pub use lsp_types::CompletionResponse;
+use lsp_types::CompletionResponse;
 
-impl LspResult for Option<(CompletionResponse, CursorPos)> {
+impl LspResult for Option<CompletionViewer> {
     type Response = Option<CompletionResponse>;
     type Param = CompletionParams;
 
     fn from_response(resp: Self::Response, param: Self::Param) -> Self {
-        resp.map(|resp| (resp, (param.text_document_position.position.line as usize, param.text_document_position.position.character as usize)))
+        resp.map(|resp| CompletionViewer::new(resp, (param.text_document_position.position.line as usize, param.text_document_position.position.character as usize)))
     }
 }
 
-pub type CompletionFetch = LspFetch<Completion, Option<(CompletionResponse, CursorPos)>>;
+pub type CompletionFetch = LspFetch<Completion, Option<CompletionViewer>>;

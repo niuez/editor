@@ -72,24 +72,15 @@ impl<B: Buffer> Draw for TextViewer<B> {
         }
         */
 
-        if let Some(&Some(ref completion)) = self.completion.try_get_result()? {
-            if completion.1 == self.cursor {
-                let text = match completion.0 {
-                    CompletionResponse::Array(ref arr) => {
-                        arr.iter().map(|a| a.label.to_owned()).collect::<Vec<_>>().join("\n")
-                    }
-                    CompletionResponse::List(ref list) => {
-                        list.items.iter().map(|a| a.label.to_owned()).collect::<Vec<_>>().join("\n")
-                    }
-                };
-
-                let mut view = HoverViewer::new(text.to_owned());
-                view.draw_all(&ViewerRect {
-                    h: rect.h - self.cursor.0 - 1,
-                    w: rect.w - self.cursor.1,
-                    i: rect.i + self.cursor.0 + 1,
-                    j: rect.j + self.cursor.1,
-                }, terminal)?;
+        if let Some(&mut Some(ref mut completion)) = self.completion.try_get_result_mut()? {
+            if completion.cursor == self.cursor {
+                completion.draw_all(
+                    &ViewerRect {
+                        h: rect.h - self.cursor.0 - 1,
+                        w: rect.w - self.cursor.1,
+                        i: rect.i + self.cursor.0 + 1,
+                        j: rect.j + self.cursor.1,
+                    }, terminal)?;
             }
         }
         Ok(())
@@ -109,36 +100,8 @@ impl<B: Buffer> Draw for TextViewer<B> {
 impl<B: Buffer> TextViewer<B> {
     async fn do_completion_raw(&mut self) -> anyhow::Result<()> {
         if let Some(&Some(ref completion)) = self.completion.try_get_result()? {
-            if completion.1 == self.cursor {
-                let item = match completion.0 {
-                    CompletionResponse::Array(ref arr) => {
-                        arr.get(0)
-                    }
-                    CompletionResponse::List(ref list) => {
-                        if list.is_incomplete {
-                            None
-                        }
-                        else {
-                            list.items.get(0)
-                        }
-                    }
-                };
-                eprintln!("complete = {:?}", item);
-                if let Some(item) = item {
-                    match item.text_edit.as_ref() {
-                        Some(CompletionTextEdit::Edit(edit)) => {
-                            self.buffer.borrow_mut().edit((edit.range.start.line as usize, edit.range.start.character as usize), (edit.range.end.line as usize, edit.range.end.character as usize), &edit.new_text).await?;
-                        }
-                        None => {}
-                        _ => unimplemented!(),
-                    }
-
-                    if let Some(edits) = item.additional_text_edits.as_ref() {
-                        for edit in edits {
-                            self.buffer.borrow_mut().edit((edit.range.start.line as usize, edit.range.start.character as usize), (edit.range.end.line as usize, edit.range.end.character as usize), &edit.new_text).await?;
-                        }
-                    }
-                }
+            if completion.cursor == self.cursor {
+                self.cursor = completion.do_completion(&mut *self.buffer.borrow_mut()).await?;
             }
         }
         Ok(())
@@ -199,6 +162,20 @@ impl<B: Buffer> Input for TextViewer<B> {
 
     async fn do_completion(&mut self) -> anyhow::Result<()> {
         self.do_completion_raw().await
+    }
+
+    async fn completion_next(&mut self) -> anyhow::Result<()> {
+        if let Some(&mut Some(ref mut completion)) = self.completion.try_get_result_mut()? {
+            completion.select_next();
+        }
+        Ok(())
+    }
+
+    async fn completion_prev(&mut self) -> anyhow::Result<()> {
+        if let Some(&mut Some(ref mut completion)) = self.completion.try_get_result_mut()? {
+            completion.select_prev();
+        }
+        Ok(())
     }
 }
 

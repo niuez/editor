@@ -94,14 +94,6 @@ impl Editor {
             self.viewers[self.active].0.hover().await?;
             Ok(())
         }
-        else if key == Key::char(b'C') {
-            self.viewers[self.active].0.completion().await?;
-            Ok(())
-        }
-        else if key == Key::char(b'D') {
-            self.viewers[self.active].0.do_completion().await?;
-            Ok(())
-        }
         else { Ok(()) }
     }
 
@@ -123,6 +115,15 @@ impl Editor {
         else if key == Key::char(b'\r') {
             self.viewers[self.active].0.newline().await?;
         }
+        else if key == Key::ctrl(b'd') {
+            self.viewers[self.active].0.do_completion().await?;
+        }
+        else if key == Key::ArrowUp {
+            self.viewers[self.active].0.completion_prev().await?;
+        }
+        else if key == Key::ArrowDown {
+            self.viewers[self.active].0.completion_next().await?;
+        }
         else if let Key::Character(ch) = key {
             if ch >= 32 {
                 self.insert_char_buffer.push(ch);
@@ -132,6 +133,7 @@ impl Editor {
             if let Ok(st) = String::from_utf8(self.insert_char_buffer.clone()) {
                 for c in st.chars() {
                     self.viewers[self.active].0.insert_char(c).await?;
+                    self.viewers[self.active].0.completion().await?;
                 }
                 self.insert_char_buffer.clear();
             }
